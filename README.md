@@ -37,6 +37,6 @@ Note that
 - all characters besides the digits $1, 2, \dots, 9$
     are treated as unknown characters
     - any of the spaces in the example above could be
-    replaced with a dashe, period, question mark, X,
+    replaced with a dash, period, question mark, X,
     zero, or any other character that isn't in
     $1, 2, \dots, 9$.
