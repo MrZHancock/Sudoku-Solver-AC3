@@ -6,11 +6,11 @@
 #include <string>
 #include <set>
 
-// so function signatures aren't absurdly long
-typedef unsigned short int USHORT;
-typedef std::array<std::array<std::pair<USHORT, USHORT>, 20>, 81> CONSTRAINTS_MATRIX;
-typedef std::array<unsigned short, 81> CSP;
-typedef std::pair<unsigned short, unsigned short> DIFF_CONSTRAINT;
+typedef unsigned short int DOMAIN;
+typedef std::array<DOMAIN, 81> CSP;
+typedef unsigned short int VARIABLE;
+typedef std::pair<VARIABLE, VARIABLE> DIFF_CONSTRAINT;
+typedef std::array<std::array<DIFF_CONSTRAINT, 20>, 81> CONSTRAINTS_MATRIX;
 
 
 CONSTRAINTS_MATRIX generate_binary_constraints() {
@@ -26,8 +26,8 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
     // constraints for values in the same row
     for (unsigned short r = 0; r < 81; r += 9) {
         // r is the row
-        for (auto c1 = r; c1 < r + 8; c1++) {
-            for (auto c2 = c1 + 1; c2 < r + 9; c2++) {
+        for (VARIABLE c1 = r; c1 < r + 8; c1++) {
+            for (VARIABLE c2 = c1 + 1; c2 < r + 9; c2++) {
                 // c1 and c2 are columns in row r
                 binary_constraints[c1][bin_constr_counts[c1]++] = DIFF_CONSTRAINT{c1, c2};
                 binary_constraints[c2][bin_constr_counts[c2]++] = DIFF_CONSTRAINT{c1, c2};
@@ -38,8 +38,8 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
     // constraints for values in the same column
     for (unsigned short c = 0; c < 9; c++) {
         // c is the column
-        for (auto r1 = c; r1 < 81; r1 += 9) {
-            for (auto r2 = r1 + 9; r2 < 81; r2 += 9) {
+        for (VARIABLE r1 = c; r1 < 81; r1 += 9) {
+            for (VARIABLE r2 = r1 + 9; r2 < 81; r2 += 9) {
                 // r1 and r2 are row in column c
                 binary_constraints[r1][bin_constr_counts[r1]++] = DIFF_CONSTRAINT{r1, r2};
                 binary_constraints[r2][bin_constr_counts[r2]++] = DIFF_CONSTRAINT{r1, r2};
@@ -48,15 +48,15 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
     }
 
     // constraints for values in the same sub-grid
-    for (unsigned int br = 0; br < 81; br += 27) {
+    for (unsigned short br = 0; br < 81; br += 27) {
         for (auto bc = br; bc < br + 9; bc += 3) {
             // bc is the top-left corner of a 3x3 sub-grid
             // bc + (x/3)*9 + x%3 gives each value in the sub-grid
             // where 0 <= x < 9
-            for (unsigned int i = 0; i < 8; i++) {
-                auto a = bc + (i/3) * 9 + i%3;
+            for (unsigned short i = 0; i < 8; i++) {
+                VARIABLE a = bc + (i/3) * 9 + i%3;
                 for (auto j = i + 1; j < 9; j++) {
-                    auto b = bc + (j/3) * 9 + j%3;
+                    VARIABLE b = bc + (j/3) * 9 + j%3;
                     if ((b - a) % 9 != 0 && a/9 != b/9) {
                         binary_constraints[a][bin_constr_counts[a]++] = DIFF_CONSTRAINT{a, b};
                         binary_constraints[b][bin_constr_counts[b]++] = DIFF_CONSTRAINT{a, b};
@@ -76,16 +76,26 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
 
 
 // opens the input file and updates domains according to the unary constraints
-bool apply_unary_constraints(const std::string& input_filename, CSP &csp) {
+bool apply_unary_constraints(const std::string &input_filename, CSP &csp) {
 
     char ch;
     unsigned short i = 0;
+    // open the requested file
     std::ifstream file_in(input_filename, std::ifstream::in);
+
+    // read one character at a time
     while (file_in >> std::noskipws >> ch) {
         if ('1' <= ch && ch <= '9') {
             csp[i++] = 1 << (ch - '0' - 1);
         }
-        else if (ch != '\n') {
+        else if (ch == '\n') {
+            // ensure rows are aligned properly
+            // (if a file does not have exactly 9 characters per row)
+            // this fails only if a line is completely empty
+            i = ((i - 1) / 9 + 1) * 9;
+        }
+        else {
+            // all characters besides digits are treated as unknown
             i++;
         }
     }
@@ -100,7 +110,7 @@ bool apply_unary_constraints(const std::string& input_filename, CSP &csp) {
 // (this should decrease every time a domain is narrowed)
 // returns 0 iff there is an empty domain
 // returns 81 iff all 81 variables have been assigned
-unsigned short domain_size_sum(std::array<unsigned short, 81> &csp) {
+unsigned short domain_size_sum(CSP &csp) {
     unsigned short sum = 0U;
     // loop over every variable in the CSP
     for (const auto &domain : csp) {
@@ -117,7 +127,7 @@ unsigned short domain_size_sum(std::array<unsigned short, 81> &csp) {
 
 // helper method for AC-3
 // removes elements from dom(var1) which are inconsistent with dom(var2)
-bool revise(CSP &csp, unsigned short var1, unsigned short var2) {
+bool revise(CSP &csp, VARIABLE var1, VARIABLE var2) {
     auto v1_domain_size_old = std::popcount(csp[var1]);
     // if |dom(var2)| == 1, then make sure that number isn't in dom(var1)
     if (std::has_single_bit(csp[var2])) {
@@ -129,7 +139,7 @@ bool revise(CSP &csp, unsigned short var1, unsigned short var2) {
 
 
 //  AC-3 implementation
-unsigned short make_arc_consistent(CSP &csp, const CONSTRAINTS_MATRIX &bin_constraints) {
+void make_arc_consistent(CSP &csp, const CONSTRAINTS_MATRIX &bin_constraints) {
 
     // create a queue
     std::set<DIFF_CONSTRAINT> queue;
@@ -146,34 +156,32 @@ unsigned short make_arc_consistent(CSP &csp, const CONSTRAINTS_MATRIX &bin_const
     do {
         // pop an arbitrary arc from the queue
         auto arc = queue.begin();
-        auto var1 = arc -> first;
-        auto var2 = arc -> second;
+        VARIABLE var1 = arc -> first;
+        VARIABLE var2 = arc -> second;
         queue.erase(arc);
 
-        if (revise(csp, var1, var2)) {
+        if ( revise(csp, var1, var2) ) {
             // dom(var1) was revised; put adjacent arcs in the queue
             queue.insert(std::cbegin(bin_constraints[var1]), std::cend(bin_constraints[var1]));
             if ( csp[var1] == 0 ) {
-                return 0; // nothing in revised domain ==> no solution
+                queue.clear(); // revised domain is empty ==> no solution ==> stop AC-3
             }
         }
-        else if (revise(csp, var2, var1)) {
+        else if ( revise(csp, var2, var1) ) {
             // dom(var2) was revised; put adjacent arcs in the queue
             queue.insert(std::cbegin(bin_constraints[var2]), std::cend(bin_constraints[var2]));
             if ( csp[var1] == 0 ) {
-                return 0; // nothing in revised domain ==> no solution
+                queue.clear(); // revised domain is empty ==> no solution  ==> stop AC-3
             }
         }
 
         // log the size of the queue (so we can generate a chart later, if need be)
         queue_size_log_file << queue.size() << std::endl;
 
-    } while (queue.size() != 0);
+    } while ( queue.size() != 0 );
 
     // close the file where we logged the size of the queue
     queue_size_log_file.close();
-
-    return domain_size_sum(csp);
 }
 
 
@@ -181,14 +189,15 @@ unsigned short make_arc_consistent(CSP &csp, const CONSTRAINTS_MATRIX &bin_const
 bool feasible_assignment(
                          CSP &csp,
                          const CONSTRAINTS_MATRIX &bin_constraints,
-                         unsigned short var,
-                         unsigned short assignment) {
+                         VARIABLE var,
+                         DOMAIN assignment) {
     for (const auto &constraint : bin_constraints[var]) {
         if (csp[constraint.second] == assignment) {
             // same assignment as another variable in same row, column, or sub-grid
             return false;
         }
     }
+    // none of the relevant constraints were violated
     return true;
 }
 
@@ -196,11 +205,11 @@ bool feasible_assignment(
 // only to be used after making the CSP arc-consistent
 unsigned short solve_with_backtracking(CSP &csp, const CONSTRAINTS_MATRIX &bin_constraints) {
     // loop through every variable
-    for (unsigned short i = 0; i < 81; i++) {
+    for (VARIABLE i = 0; i < 81; i++) {
         // if the variable is unassigned (i.e., its domain has >1 value)
         if ( !std::has_single_bit(csp[i]) ) {
-            unsigned short full_domain = csp[i];
-            unsigned short temp_domain = csp[i];
+            DOMAIN full_domain = csp[i];
+            DOMAIN temp_domain = csp[i];
             unsigned short offset = 0U;
             do {
                 // try the next value in the domain
@@ -216,7 +225,7 @@ unsigned short solve_with_backtracking(CSP &csp, const CONSTRAINTS_MATRIX &bin_c
                         return 81;
                     }
                     // no solution was found with this assignment
-                    // undo this assignment
+                    // undo the assignment
                     csp[i] = full_domain;
                 }
             } while ( temp_domain != 0 );
@@ -230,12 +239,12 @@ unsigned short solve_with_backtracking(CSP &csp, const CONSTRAINTS_MATRIX &bin_c
 }
 
 
-void write_solution_to_file(const std::string output_filename, const CSP &csp, std::string m) {
+void write_solution_to_file(const std::string filename_out, const CSP &csp, std::string msg) {
     // text file for the solved puzzle
-    std::ofstream output_file(output_filename, std::ifstream::trunc);
+    std::ofstream output_file(filename_out, std::ifstream::trunc);
     
     // keep track of which column is printed (so newlines can be added)
-    unsigned short i = 0;
+    VARIABLE i = 0;
     for (const auto domain : csp) {
         if ( std::has_single_bit(domain) ) {
             // singleton domain ==> print the value
@@ -251,7 +260,7 @@ void write_solution_to_file(const std::string output_filename, const CSP &csp, s
         }
     }
     // write message `m` at the bottom line of the file
-    output_file << m << std::endl;
+    output_file << msg << std::endl;
 }
 
 
@@ -264,14 +273,14 @@ int main(int argc, char *argv[]) {
     if (argc >= 3) output_filename = argv[2];
 
 
-    auto binary_constraints = generate_binary_constraints();
+    CONSTRAINTS_MATRIX binary_constraints = generate_binary_constraints();
 
     // create 9x9 array of domains
     // each domain is a (short) integer
     // 1s values in the domain, 0s denote values not in the domain
     // for example, d & 1<<(5-1) iff 5 is in domain d
     CSP csp;
-    std::fill(std::begin(csp), std::end(csp), 0b0000000111111111U);
+    std::fill(std::begin(csp), std::end(csp), 0b111111111U);
 
     // reads the input file and updates domains appropriately
     bool file_failed = apply_unary_constraints(input_filename, csp);
@@ -283,42 +292,46 @@ int main(int argc, char *argv[]) {
     }
 
     // apply AC-3
+    make_arc_consistent(csp, binary_constraints);
+    // check domain sizes
+    auto dom_size = domain_size_sum(csp);
     std::string message;
-    auto dom_size = make_arc_consistent(csp, binary_constraints);
     if (dom_size == 0) {
+        // at least one empty domain
         message.assign("This puzzle is unsolveable");
     }
-    else if (dom_size == 1) {
+    else if (dom_size == 81) {
+        // all 81 domains are singletons
         message.assign("Solved using AC-3 only");
     }
     else {
         // rearrange constraints to act like key->value pairs
         // rather than simply being in ascending order
-        for (unsigned short i = 0; i < 81; i++) {
-            for (auto &constraint : binary_constraints[i]) {
-                if (constraint.first != i) {
+        for (VARIABLE var = 0; var < 81; var++) {
+            for (auto &constraint : binary_constraints[var]) {
+                if (constraint.first != var) {
                     std::swap(constraint.first, constraint.second);
                 }
             }
         }
 
         // use backtracking to find a solution
-        auto soln = solve_with_backtracking(csp, binary_constraints);
-        if (soln == 0) {
+        auto size = solve_with_backtracking(csp, binary_constraints);
+        if (size == 0) {
             message.assign("This puzzle is unsolveable");
         }
-        else if (soln == 81) {
+        else if (size == 81) {
             message.assign("Solved using AC-3 and backtracking");
         }
         else {
             // something in the code went wrong
             // unlclear whether or not puzzle is solveable
-            message.assign("Error: result is indeterminate");
+            message.assign("Error: result is unknown...");
         }
     }
 
+    // the solution and message are written to a text file (not stdout)
     write_solution_to_file(output_filename, csp, message);
 
-    std::cout << "Terminated Successfully" << std::endl;
     return 0;
 }

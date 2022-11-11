@@ -32,11 +32,12 @@ All input files should be in the following format:
 Note that
 - the file has exactly 9 rows
 - each row has exactly 9 characters
-    (plus a newline at the end)
-- there are no deliminators to designate where each of the $3\times 3$ sub-grids starts/ends
+  (plus a newline at the end)
+- there are no deliminators to designate where each of the
+  $3\times 3$ sub-grids starts/ends
 - all characters besides the digits $1, 2, \dots, 9$
-    are treated as unknown characters
-    - any of the spaces in the example above could be
+  are treated as unknown characters
+  - any of the spaces in the example above could be
     replaced with a dash, period, question mark, X,
     zero, or any other character that isn't in
-    $1, 2, \dots, 9$.
+    $1, 2, \dots, 9$ (besides extra newline characters).
