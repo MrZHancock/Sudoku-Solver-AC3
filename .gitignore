@@ -2,3 +2,4 @@
 *.txt
 *.dSYM
 Sudoku
+_*.py
