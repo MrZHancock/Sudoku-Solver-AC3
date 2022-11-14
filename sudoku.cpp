@@ -291,42 +291,49 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // apply AC-3
-    make_arc_consistent(csp, binary_constraints);
-    // check domain sizes
-    auto dom_size = domain_size_sum(csp);
+    // tells the user how the puzzle was solved
     std::string message;
-    if (dom_size == 0) {
-        // at least one empty domain
-        message.assign("This puzzle is unsolveable");
-    }
-    else if (dom_size == 81) {
-        // all 81 domains are singletons
-        message.assign("Solved using AC-3 only");
-    }
-    else {
-        // rearrange constraints to act like key->value pairs
-        // rather than simply being in ascending order
-        for (VARIABLE var = 0; var < 81; var++) {
-            for (auto &constraint : binary_constraints[var]) {
-                if (constraint.first != var) {
-                    std::swap(constraint.first, constraint.second);
-                }
-            }
-        }
+    
+    if (domain_size_sum(csp) == 81) {
+        message.assign("Puzzle is already solved");
+    } else {
 
-        // use backtracking to find a solution
-        auto size = solve_with_backtracking(csp, binary_constraints);
-        if (size == 0) {
+        // apply AC-3
+        make_arc_consistent(csp, binary_constraints);
+        // check domain sizes
+        auto dom_size = domain_size_sum(csp);
+        if (dom_size == 0) {
+            // at least one empty domain
             message.assign("This puzzle is unsolveable");
         }
-        else if (size == 81) {
-            message.assign("Solved using AC-3 and backtracking");
+        else if (dom_size == 81) {
+            // all 81 domains are singletons
+            message.assign("Solved using AC-3 only");
         }
         else {
-            // something in the code went wrong
-            // unlclear whether or not puzzle is solveable
-            message.assign("Error: result is unknown...");
+            // rearrange constraints to act like key->value pairs
+            // rather than simply being in ascending order
+            for (VARIABLE var = 0; var < 81; var++) {
+                for (auto &constraint : binary_constraints[var]) {
+                    if (constraint.first != var) {
+                        std::swap(constraint.first, constraint.second);
+                    }
+                }
+            }
+
+            // use backtracking to find a solution
+            auto size = solve_with_backtracking(csp, binary_constraints);
+            if (size == 0) {
+                message.assign("This puzzle is unsolveable");
+            }
+            else if (size == 81) {
+                message.assign("Solved using AC-3 and backtracking");
+            }
+            else {
+                // something in the code went wrong
+                // unlclear whether or not puzzle is solveable
+                message.assign("Error: result is unknown...");
+            }
         }
     }
 

@@ -227,6 +227,7 @@ class Terminal_Interface:
             elif key in (curses.KEY_BACKSPACE, curses.KEY_DC, 0xb, 0x7F):
                 y, x = self.window.getyx() # get current cursor position
                 self.window.addch(y, x, ' ')
+                self.matrix[ 3*y//4 ][ 3*x//4 ] = ' '
                 if key != curses.KEY_DC:
                     x -= 1
                     if x == 0 and y != 1:
@@ -244,6 +245,7 @@ class Terminal_Interface:
                 y, x = self.window.getyx()
                 self.matrix = [[' ' for _ in range(9)] for _ in range(9)]
                 self.display_matrix_values()
+                self.window.addnstr(13, 0, " " * self.width, self.width)
                 self.window.move(y, x)
             elif key | 0x20 == ord('l') and LOAD_FROM_FILE:
                 # (L)oad
