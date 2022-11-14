@@ -1,5 +1,6 @@
 # API for terminal interface
 import curses # pip install windows-curses
+import subprocess
 try:
     # for loading from file
     import os
@@ -49,13 +50,13 @@ class Terminal_Interface:
             c = 1 + y_offset # row in terminal
             for val_old, val_new in zip(row_old, row_new):
                 if c != 1 + y_offset and c % 4 == 0:
-                    c += 1
-                if val_old != val_new:
+                    c += 1 # move past gridlines
+                if val_old != val_new and val_new != ' ':
                     self.window.addch(r+y_offset, c+x_offset, str(val_new), NEW_ATTR)
                 c += 1
             r += 1
             if (r + y_offset) % 4 == 0:
-                r += 1
+                r += 1 # move past vertical gridlines
 
 
     def draw_sudoku_gridlines(self):
@@ -99,11 +100,8 @@ class Terminal_Interface:
             "  (L)oad from File" if LOAD_FROM_FILE else "",
             "  (S)olve",
             "  (Q)uit",
-            "",
-            "Use arrow keys or mouse",
-            "clicks and the number",
-            "keys to fill in the",
-            "Sudoku puzzle.",
+            "", "Use arrow keys or mouse", "clicks and the number",
+            "keys to fill in the", "Sudoku puzzle.",
         )
 
         self.window.addstr(y_offset, x_offset, TITLE, curses.A_BOLD)
@@ -135,6 +133,7 @@ class Terminal_Interface:
                 # if file has less than 9 rows, leave the other rows blank
                 matrix.append([' '] * 9)
         with open(path, 'r') as file_in:
+            # read last line of file
             msg = file_in.read().splitlines()[-1].strip()
         # if file has >9 lines, keep only the first 9
         return matrix[:9], msg
@@ -159,13 +158,13 @@ class Terminal_Interface:
 
         # write the instructions to the terminal
         # (to the right of the puzzle)
-        self.draw_ui_instructions(15)
+        self.draw_ui_instructions(x_offset=15)
 
         # configure curses to listen for mouse clicks
         curses.mouseinterval(10) # 10 ms
-        curses.mousemask(curses.BUTTON1_CLICKED) # left click
+        curses.mousemask(curses.BUTTON1_CLICKED) # listen for left clicks
         
-        # move cursor to the first unknown position
+        # move cursor to top left
         stdscr.move(1, 1)
         # update the terminal
         stdscr.refresh()
@@ -180,71 +179,65 @@ class Terminal_Interface:
             elif key == curses.KEY_LEFT:
                 y, x = stdscr.getyx()
                 x -= 1 # move cursor left
-                if x % 4 == 0: # cursor in gridline
-                    if x == 0:
-                        x = 11 # wrap around to right side
-                    else:
-                        x -= 1 # move left of vertical line
+                if x == 0:
+                    x = 11 # wrap around to right side
+                elif x % 4 == 0: # cursor in gridline
+                    x -= 1 # move left of vertical line
                 self.window.move(y, x)
             elif key == curses.KEY_RIGHT:
                 y, x = self.window.getyx()
                 x += 1 # move cursor right
-                if x % 4 == 0: # cursor in gridline
-                    if x == 12:
-                        x = 1 # wrap around to left side
-                    else:
-                        x += 1 # move right of vertical line
+                if x == 12:
+                    x = 1 # wrap around to left side
+                elif x % 4 == 0: # cursor in gridline
+                    x += 1 # move right of vertical line
                 self.window.move(y, x)
             elif key == curses.KEY_UP:
                 y, x = self.window.getyx()
                 y -= 1 # move cursor down
-                if y % 4 == 0: # cursor in gridline
-                    if y == 0:
-                        y = 11 # wrap around to bottom
-                    else:
-                        y -= 1 # move below horizontal line
+                if y == 0:
+                    y = 11 # wrap around to bottom
+                elif y % 4 == 0: # cursor in gridline
+                    y -= 1 # move below horizontal line
                 self.window.move(y, x) # set new position
             elif key == curses.KEY_DOWN:
                 y, x = self.window.getyx() # get current cursor position
                 y += 1
-                if y % 4 == 0: # cursor in gridline
-                    if y == 12:
-                        y = 1 # wrap around to top
-                    else:
-                        y += 1 # move below the vertical line
+                if y == 12:
+                    y = 1 # wrap around to top
+                elif y % 4 == 0: # cursor in gridline
+                    y += 1 # move below the vertical line
                 self.window.move(y, x) # set new position
             elif ord('1') <= key <= ord('9') or key == ord(' '):
                 y, x = self.window.getyx() # get current cursor position
                 self.matrix[ 3*y//4 ][ 3*x//4 ] = chr(key)
                 self.window.addch(y, x, chr(key))
                 x += 1
-                if x % 4 == 0:
-                    if x == 12:
-                        if y != 11:
-                            x = 1
-                            y += 1
-                            if y % 4 == 0:
-                                y += 1
-                        else:
-                            x = 11
+                if x == 12:
+                    if y != 11:
+                        x = 1
+                        y += 1
+                        if y % 4 == 0:
+                            y += 1 # move past gridline
                     else:
-                        x += 1
-                    self.window.move(y, x) # set new position
+                        x = 11 # cannot advance past bottom left corner
+                elif x % 4 == 0:
+                    x += 1
+                self.window.move(y, x) # set new position
             elif key in (curses.KEY_BACKSPACE, curses.KEY_DC, 0xb, 0x7F):
                 y, x = self.window.getyx() # get current cursor position
                 self.window.addch(y, x, ' ')
                 if key != curses.KEY_DC:
                     x -= 1
-                    if x % 4 == 0:
-                        if x == 0 and y != 1:
-                            x = 11
+                    if x == 0 and y != 1:
+                        x = 11
+                        y -= 1
+                        if y % 4 == 0:
                             y -= 1
-                            if y % 4 == 0:
-                                y -= 1
-                        elif x == 0:
-                            x = 1
-                        elif x % 4 == 0:
-                            x -= 1
+                    elif x == 0:
+                        x = 1
+                    elif x % 4 == 0:
+                        x -= 1
                 self.window.move(y, x)
             elif key | 0x20 == ord('c'):
                 # (C)lear
@@ -279,13 +272,18 @@ class Terminal_Interface:
                 with open("puzzle_in.txt", 'w') as f:
                     for row in self.matrix:
                         print("".join(row), file=f)
+                # hide the cursor (so it doesn't block the results)
                 curses.curs_set(0)
                 self.window.addnstr(13, 0, "Solving...", self.width)
-                os.system("make run > /dev/null")
+                subprocess.call(["make", "run"], stdout=subprocess.DEVNULL)
                 matrix_new, msg = self.load_sudoku_from_file("puzzle_out.txt")
                 self.window.addstr(13, 0, f"{msg:{self.width}}")
                 self.display_updated_matrix_values(self.matrix, matrix_new)
-                self.window.move(12, self.width - 1)
+                self.window.move(1, 1)
+                # wait for the user to enter another key
+                curses.ungetch(stdscr.getch())
+                # show the cursor
+                curses.curs_set(2)
             elif key == curses.KEY_RESIZE:
                 pass # ignore terminal resize
             else:
