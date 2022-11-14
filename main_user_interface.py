@@ -1,6 +1,7 @@
 # API for terminal interface
 import curses # pip install windows-curses
 import subprocess
+import time # for timing how long it takes to solve
 try:
     # for loading from file
     import os
@@ -246,6 +247,7 @@ class Terminal_Interface:
                 self.matrix = [[' ' for _ in range(9)] for _ in range(9)]
                 self.display_matrix_values()
                 self.window.addnstr(13, 0, " " * self.width, self.width)
+                self.window.addnstr(14, 0, " " * self.width, self.width)
                 self.window.move(y, x)
             elif key | 0x20 == ord('l') and LOAD_FROM_FILE:
                 # (L)oad
@@ -277,7 +279,14 @@ class Terminal_Interface:
                 # hide the cursor (so it doesn't block the results)
                 curses.curs_set(0)
                 self.window.addnstr(13, 0, "Solving...", self.width)
+                start_time = time.time()
                 subprocess.call(["make", "run"], stdout=subprocess.DEVNULL)
+                duration_seconds = time.time() - start_time
+                if duration_seconds > 60:
+                    minutes, duration_seconds = divmod(duration_seconds, 60)
+                    self.window.addstr(14, 0, f"Time:{minutes:2.0f} minutes, {duration_seconds:.4f} seconds")
+                else:
+                    self.window.addstr(14, 0, f"Time: {duration_seconds:8.4f} seconds")
                 matrix_new, msg = self.load_sudoku_from_file("puzzle_out.txt")
                 self.window.addstr(13, 0, f"{msg:{self.width}}")
                 self.display_updated_matrix_values(self.matrix, matrix_new)
