@@ -254,7 +254,7 @@ void write_solution_to_file(const std::string filename_out, const CSP &csp, std:
     
     // keep track of which column is printed (so newlines can be added)
     VARIABLE i = 0;
-    for (const auto domain : csp) {
+    for (const auto &domain : csp) {
         if ( std::has_single_bit(domain) ) {
             // singleton domain ==> print the value
             output_file << std::countr_zero(domain);

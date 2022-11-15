@@ -9,6 +9,24 @@ try:
     LOAD_FROM_FILE = True
 except ModuleNotFoundError:
     LOAD_FROM_FILE = False
+try:
+    import matplotlib.pyplot as plt
+    GRAPH = True
+except ModuleNotFoundError:
+    GRAPH = False
+
+
+def draw_queue_size_chart(filename_in="queue_size.txt", filename_out="plot.pdf"):
+    if GRAPH:
+        with open(filename_in, 'r') as f:
+            queue_size = list(map(int, f.read().split()))
+        step = range(len(queue_size))
+        plt.plot(step, queue_size, linewidth=0.6)
+        plt.title("Queue Size During AC-3 Execution")
+        plt.xlabel("Step")
+        plt.ylabel("Queue Size")
+        plt.savefig(filename_out)
+
 
 class Terminal_Interface:
     # xterm-256 colour constants
@@ -276,11 +294,17 @@ class Terminal_Interface:
                 with open("puzzle_in.txt", 'w') as f:
                     for row in self.matrix:
                         print("".join(row), file=f)
+                subprocess.call(["mkdir", "-p", "./puzzles/logs"])
+                log_path = f"./puzzles/logs/{time.ctime().replace(' ', '_').replace(':','-')}.txt"
+                subprocess.call(["cp", "puzzle_in.txt", log_path],
+                    stdout=subprocess.DEVNULL) # log
                 # hide the cursor (so it doesn't block the results)
                 curses.curs_set(0)
-                self.window.addnstr(13, 0, "Solving...", self.width)
+                subprocess.call(["make", "sudoku"], stdout=subprocess.DEVNULL) # compile
+                self.window.addnstr(13, 0, "Solving...   ", self.width)
+                stdscr.refresh()
                 start_time = time.time()
-                subprocess.call(["make", "run"], stdout=subprocess.DEVNULL)
+                subprocess.call(["make", "run"], stdout=subprocess.DEVNULL) # run
                 duration_seconds = time.time() - start_time
                 if duration_seconds > 60:
                     minutes, duration_seconds = divmod(duration_seconds, 60)
@@ -307,3 +331,4 @@ class Terminal_Interface:
 
 if __name__ == "__main__":
     Terminal_Interface()
+    draw_queue_size_chart()
