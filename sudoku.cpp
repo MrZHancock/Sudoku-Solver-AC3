@@ -86,7 +86,7 @@ bool apply_unary_constraints(const std::string &input_filename, CSP &csp) {
     // read one character at a time
     while (file_in >> std::noskipws >> ch) {
         if ('1' <= ch && ch <= '9') {
-            csp[i++] = 1 << (ch - '0' - 1);
+            csp[i++] = 1 << (ch - '0');
         }
         else if (ch == '\n') {
             // ensure rows are aligned properly
@@ -203,39 +203,48 @@ bool feasible_assignment(
 
 
 // only to be used after making the CSP arc-consistent
-unsigned short solve_with_backtracking(CSP &csp, const CONSTRAINTS_MATRIX &bin_constraints) {
+unsigned short solve_with_backtracking(
+                                       CSP &csp,
+                                       const CONSTRAINTS_MATRIX &bin_constraints,
+                                       VARIABLE i) {
     // loop through every variable
-    for (VARIABLE i = 0; i < 81; i++) {
-        // if the variable is unassigned (i.e., its domain has >1 value)
-        if ( !std::has_single_bit(csp[i]) ) {
-            DOMAIN full_domain = csp[i];
-            DOMAIN temp_domain = csp[i];
-            unsigned short offset = 0U;
-            do {
-                // try the next value in the domain
-                offset += std::countr_zero(temp_domain) + 1;
-                temp_domain >>= std::countr_zero(temp_domain) + 1;
-                // only use this value if it is locally consistent
-                if ( feasible_assignment(csp, bin_constraints, i, 1 << (offset - 1)) ) {
-                    // try to solve the puzzle with this value
-                    csp[i] = 1 << (offset - 1);
-                    // recursively backtrack
-                    if ( solve_with_backtracking(csp, bin_constraints) == 81) {
-                        // base case: sub-problem is solved
-                        return 81;
-                    }
-                    // no solution was found with this assignment
-                    // undo the assignment
-                    csp[i] = full_domain;
-                }
-            } while ( temp_domain != 0 );
-            // exhausted every possible assignment for this variable
-            // (in combination with all other unassigned variables)
-            return 0;
-        }
+    while ( i != 81 && std::has_single_bit(csp[i]) ) {
+        // VARIABLE i has already been narrowed to a singleton domain
+        // move on to the next VARIABLE
+        i++;
     }
-    // found a solution
-    return domain_size_sum(csp);
+
+    if (i == 81) {
+        // all 81 variables have feasible assignments
+        // ==> current csp is a solution
+        return 81;
+    }
+
+    DOMAIN full_domain = csp[i];
+    DOMAIN temp_domain = full_domain;
+    unsigned short offset = -1;
+    do {
+        // try the next value in the domain
+        offset += std::countr_zero(temp_domain) + 1;
+        temp_domain >>= std::countr_zero(temp_domain) + 1;
+        // only use this value if it is locally consistent
+        if ( feasible_assignment(csp, bin_constraints, i, 1 << offset) ) {
+            // try to solve the puzzle with this value
+            csp[i] = 1 << offset;
+            // recursively backtrack
+            if ( solve_with_backtracking(csp, bin_constraints, i + 1) == 81 ) {
+                // base case: sub-problem is solved
+                return 81;
+            }
+            // no solution was found with this assignment
+            // undo the assignment
+            csp[i] = full_domain;
+        }
+    } while ( temp_domain != 0 );
+    // exhausted every possible assignment for VARIABLE i
+    // in combination with all other unassigned variables
+    return 0;
+
 }
 
 
@@ -248,7 +257,7 @@ void write_solution_to_file(const std::string filename_out, const CSP &csp, std:
     for (const auto domain : csp) {
         if ( std::has_single_bit(domain) ) {
             // singleton domain ==> print the value
-            output_file << std::countr_zero(domain) + 1;
+            output_file << std::countr_zero(domain);
         }
         else {
             // unsolved domain
@@ -278,9 +287,9 @@ int main(int argc, char *argv[]) {
     // create 9x9 array of domains
     // each domain is a (short) integer
     // 1s values in the domain, 0s denote values not in the domain
-    // for example, d & 1<<(5-1) iff 5 is in domain d
+    // for example, d & 1<<5 iff 5 is in domain d
     CSP csp;
-    std::fill(std::begin(csp), std::end(csp), 0b111111111U);
+    std::fill(std::begin(csp), std::end(csp), 0b1111111110U);
 
     // reads the input file and updates domains appropriately
     bool file_failed = apply_unary_constraints(input_filename, csp);
@@ -293,7 +302,7 @@ int main(int argc, char *argv[]) {
 
     // tells the user how the puzzle was solved
     std::string message;
-    
+
     if (domain_size_sum(csp) == 81) {
         message.assign("Puzzle is already solved");
     } else {
@@ -322,7 +331,7 @@ int main(int argc, char *argv[]) {
             }
 
             // use backtracking to find a solution
-            auto size = solve_with_backtracking(csp, binary_constraints);
+            auto size = solve_with_backtracking(csp, binary_constraints, 0);
             if (size == 0) {
                 message.assign("This puzzle is unsolveable");
             }
