@@ -273,6 +273,34 @@ void write_solution_to_file(const std::string filename_out, const CSP &csp, std:
 }
 
 
+void write_domains_to_file(const std::string filename_out, const CSP &csp) {
+    // text file for the solved puzzle
+    std::ofstream output_file(filename_out, std::ifstream::trunc);
+    
+    // keep track of which column is printed (so newlines can be added)
+    VARIABLE i = 0;
+    for (auto domain : csp) {
+        for (int i = 1; i != 10; i++) {
+            domain >>= 1;
+            if ( (domain & 1) != 0 ) {
+                output_file << i;
+            }
+            else {
+                output_file << ' ';
+            }
+        }
+        
+        if (++i % 9 == 0) {
+            // newline character between rows
+            output_file << std::endl;
+        }
+        else {
+            output_file << '|'; // seperator between each domain
+        }
+    }
+}
+
+
 // Driver code
 int main(int argc, char *argv[]) {
 
@@ -309,6 +337,10 @@ int main(int argc, char *argv[]) {
 
         // apply AC-3
         make_arc_consistent(csp, binary_constraints);
+
+        // writes the domains to a text file
+        write_domains_to_file("arc-consistent-csp.txt", csp);
+
         // check domain sizes
         auto dom_size = domain_size_sum(csp);
         if (dom_size == 0) {
