@@ -13,8 +13,8 @@ typedef std::pair<VARIABLE, VARIABLE> DIFF_CONSTRAINT;
 typedef std::array<std::array<DIFF_CONSTRAINT, 20>, 81> CONSTRAINTS_MATRIX;
 
 
+// generate a 2d array of all binary constraints
 CONSTRAINTS_MATRIX generate_binary_constraints() {
-    // generate an 2d of all binary constraints
     // binary_constraints[i] has every constraint on variable i
     CONSTRAINTS_MATRIX binary_constraints;
     
@@ -26,8 +26,8 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
     // constraints for values in the same row
     for (unsigned short r = 0; r < 81; r += 9) {
         // r is the row
-        for (VARIABLE c1 = r; c1 < r + 8; c1++) {
-            for (VARIABLE c2 = c1 + 1; c2 < r + 9; c2++) {
+        for (VARIABLE c1 = r; c1 != r + 8; c1++) {
+            for (VARIABLE c2 = c1 + 1; c2 != r + 9; c2++) {
                 // c1 and c2 are columns in row r
                 binary_constraints[c1][bin_constr_counts[c1]++] = DIFF_CONSTRAINT{c1, c2};
                 binary_constraints[c2][bin_constr_counts[c2]++] = DIFF_CONSTRAINT{c1, c2};
@@ -36,7 +36,7 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
     }
 
     // constraints for values in the same column
-    for (unsigned short c = 0; c < 9; c++) {
+    for (unsigned short c = 0; c != 9; c++) {
         // c is the column
         for (VARIABLE r1 = c; r1 < 81; r1 += 9) {
             for (VARIABLE r2 = r1 + 9; r2 < 81; r2 += 9) {
@@ -53,9 +53,9 @@ CONSTRAINTS_MATRIX generate_binary_constraints() {
             // bc is the top-left corner of a 3x3 sub-grid
             // bc + (x/3)*9 + x%3 gives each value in the sub-grid
             // where 0 <= x < 9
-            for (unsigned short i = 0; i < 8; i++) {
+            for (unsigned short i = 0; i != 8; i++) {
                 VARIABLE a = bc + (i/3) * 9 + i%3;
-                for (auto j = i + 1; j < 9; j++) {
+                for (auto j = i + 1; j != 9; j++) {
                     VARIABLE b = bc + (j/3) * 9 + j%3;
                     if ((b - a) % 9 != 0 && a/9 != b/9) {
                         binary_constraints[a][bin_constr_counts[a]++] = DIFF_CONSTRAINT{a, b};
@@ -133,8 +133,7 @@ bool revise(CSP &csp, VARIABLE var1, VARIABLE var2) {
     if (std::has_single_bit(csp[var2])) {
         csp[var1] &= ~csp[var2];
     }
-    auto v1_domain_size_new = std::popcount(csp[var1]);
-    return v1_domain_size_old != v1_domain_size_new;
+    return v1_domain_size_old != std::popcount(csp[var1]);
 }
 
 
@@ -188,10 +187,9 @@ void make_arc_consistent(CSP &csp, const CONSTRAINTS_MATRIX &bin_constraints) {
 // check if assigning `assignment` to variable `var` violates a constraint
 bool feasible_assignment(
                          CSP &csp,
-                         const CONSTRAINTS_MATRIX &bin_constraints,
-                         VARIABLE var,
+                         const std::array<DIFF_CONSTRAINT, 20> &bin_constraints,
                          DOMAIN assignment) {
-    for (const auto &constraint : bin_constraints[var]) {
+    for (const auto &constraint : bin_constraints) {
         if (csp[constraint.second] == assignment) {
             // same assignment as another variable in same row, column, or sub-grid
             return false;
@@ -228,7 +226,7 @@ unsigned short solve_with_backtracking(
         offset += std::countr_zero(temp_domain) + 1;
         temp_domain >>= std::countr_zero(temp_domain) + 1;
         // only use this value if it is locally consistent
-        if ( feasible_assignment(csp, bin_constraints, i, 1 << offset) ) {
+        if ( feasible_assignment(csp, bin_constraints[i], 1 << offset) ) {
             // try to solve the puzzle with this value
             csp[i] = 1 << offset;
             // recursively backtrack
@@ -268,7 +266,7 @@ void write_solution_to_file(const std::string filename_out, const CSP &csp, std:
             output_file << std::endl;
         }
     }
-    // write message `m` at the bottom line of the file
+    // write message `msg` to the last line of the file
     output_file << msg << std::endl;
 }
 
@@ -280,7 +278,7 @@ void write_domains_to_file(const std::string filename_out, const CSP &csp) {
     // keep track of which column is printed (so newlines can be added)
     VARIABLE i = 0;
     for (auto domain : csp) {
-        for (int i = 1; i != 10; i++) {
+        for (unsigned short i = 1; i != 10; i++) {
             domain >>= 1;
             if ( (domain & 1) != 0 ) {
                 output_file << i;
@@ -293,6 +291,13 @@ void write_domains_to_file(const std::string filename_out, const CSP &csp) {
         if (++i % 9 == 0) {
             // newline character between rows
             output_file << std::endl;
+            if (i % 27 == 0 && i != 81) {
+                // draw horizontal lines to split up 3x3 sug-grids
+                for (unsigned short i = 0; i != 8; i++) {
+                    output_file << std::string(9, '-') << '+';
+                }
+                output_file << std::string(9, '-') << std::endl;
+            }
         }
         else {
             output_file << '|'; // seperator between each domain
@@ -354,7 +359,7 @@ int main(int argc, char *argv[]) {
         else {
             // rearrange constraints to act like key->value pairs
             // rather than simply being in ascending order
-            for (VARIABLE var = 0; var < 81; var++) {
+            for (VARIABLE var = 0; var != 81; var++) {
                 for (auto &constraint : binary_constraints[var]) {
                     if (constraint.first != var) {
                         std::swap(constraint.first, constraint.second);
