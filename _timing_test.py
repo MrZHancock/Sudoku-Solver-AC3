@@ -1,4 +1,3 @@
-#/usr/local/bin/python3
 import subprocess
 import random
 import time
@@ -12,6 +11,7 @@ times = []
 
 try:
     with alive_bar(NUM_TESTS) as progress_bar:
+        subprocess.call(["make", "sudoku"]) # compile the code
         for test in tests:
             subprocess.call(["cp", f"./royle-puzzles/puzzle{test:05d}.txt", "puzzle_in.txt"])
             start_time = time.time()
